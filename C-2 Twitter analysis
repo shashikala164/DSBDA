@@ -1,1 +1,498 @@
 
+
+# utilities
+import re
+import numpy as np
+import pandas as pd
+# plotting
+import seaborn as sns
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
+# nltk
+from nltk.stem import WordNetLemmatizer
+# sklearn
+from sklearn.svm import LinearSVC
+from sklearn.naive_bayes import BernoulliNB
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics import confusion_matrix, classification_report
+DATASET_COLUMNS=['target','ids','date','flag','user','text']
+DATASET_ENCODING = "ISO-8859-1"
+df = pd.read_csv('twitter_dataset.csv', encoding=DATASET_ENCODING, names=DATASET_COLUMNS)
+df.sample(5)
+target	ids	date	flag	user	text
+861608	4	1676691137	Fri May 01 22:51:17 PDT 2009	NO_QUERY	Cynnergies	@CDPappas I'm trying to write a poem for the c...
+432987	0	2064865742	Sun Jun 07 07:21:34 PDT 2009	NO_QUERY	Sherif_129	@Gawge Got around 200 shards to find
+148390	0	1883119954	Fri May 22 08:02:24 PDT 2009	NO_QUERY	emokid5885	doin english prodject
+621560	0	2228856106	Thu Jun 18 14:58:29 PDT 2009	NO_QUERY	xissteve	hell, just realised my showreel v2 i uploaded,...
+792853	0	2326420547	Thu Jun 25 07:00:59 PDT 2009	NO_QUERY	Faith_is_coolio	someone is hacking my account
+df.head()
+target	ids	date	flag	user	text
+0	0	1467810369	Mon Apr 06 22:19:45 PDT 2009	NO_QUERY	_TheSpecialOne_	@switchfoot http://twitpic.com/2y1zl - Awww, t...
+1	0	1467810672	Mon Apr 06 22:19:49 PDT 2009	NO_QUERY	scotthamilton	is upset that he can't update his Facebook by ...
+2	0	1467810917	Mon Apr 06 22:19:53 PDT 2009	NO_QUERY	mattycus	@Kenichan I dived many times for the ball. Man...
+3	0	1467811184	Mon Apr 06 22:19:57 PDT 2009	NO_QUERY	ElleCTF	my whole body feels itchy and like its on fire
+4	0	1467811193	Mon Apr 06 22:19:57 PDT 2009	NO_QUERY	Karoli	@nationwideclass no, it's not behaving at all....
+df.columns
+Index(['target', 'ids', 'date', 'flag', 'user', 'text'], dtype='object')
+print('length of data is', len(df))
+length of data is 1048576
+df. shape
+(1048576, 6)
+df.info()
+<class 'pandas.core.frame.DataFrame'>
+RangeIndex: 1048576 entries, 0 to 1048575
+Data columns (total 6 columns):
+ #   Column  Non-Null Count    Dtype 
+---  ------  --------------    ----- 
+ 0   target  1048576 non-null  int64 
+ 1   ids     1048576 non-null  int64 
+ 2   date    1048576 non-null  object
+ 3   flag    1048576 non-null  object
+ 4   user    1048576 non-null  object
+ 5   text    1048576 non-null  object
+dtypes: int64(2), object(4)
+memory usage: 48.0+ MB
+df.dtypes
+target     int64
+ids        int64
+date      object
+flag      object
+user      object
+text      object
+dtype: object
+np.sum(df.isnull().any(axis=1))
+0
+print('Count of columns in the data is:  ', len(df.columns))
+print('Count of rows in the data is:  ', len(df))
+Count of columns in the data is:   6
+
+Count of rows in the data is:   1048576
+df['target'].unique()
+array([0, 4], dtype=int64)
+df['target'].nunique()
+2
+# Plotting the distribution for dataset.
+ax = df.groupby('target').count().plot(kind='bar', title='Distribution of data',legend=False)
+ax.set_xticklabels(['Negative','Positive'], rotation=0)
+# Storing data in lists.
+text, sentiment = list(df['text']), list(df['target'])
+
+import seaborn as sns
+sns.countplot(x='target', data=df)
+<Axes: xlabel='target', ylabel='count'>
+
+data=df[['text','target']]
+data['target'] = data['target'].replace(4,1)
+C:\Users\LENOVO\AppData\Local\Temp\ipykernel_3164\2499609609.py:1: SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  data['target'] = data['target'].replace(4,1)
+data['target'].unique()
+array([0, 1], dtype=int64)
+data_pos = data[data['target'] == 1]
+data_neg = data[data['target'] == 0]
+data_pos = data_pos.iloc[:int(20000)]
+data_neg = data_neg.iloc[:int(20000)]
+dataset = pd.concat([data_pos, data_neg])
+dataset['text']=dataset['text'].str.lower()
+dataset['text'].tail()
+19995    not much time off this weekend, work trip to m...
+19996                            one more day of holidays 
+19997    feeling so down right now .. i hate you damn h...
+19998    geez,i hv to read the whole book of personalit...
+19999    i threw my sign at donnie and he bent over to ...
+Name: text, dtype: object
+stopwordlist = ['a', 'about', 'above', 'after', 'again', 'ain', 'all', 'am', 'an',
+             'and','any','are', 'as', 'at', 'be', 'because', 'been', 'before',
+             'being', 'below', 'between','both', 'by', 'can', 'd', 'did', 'do',
+             'does', 'doing', 'down', 'during', 'each','few', 'for', 'from',
+             'further', 'had', 'has', 'have', 'having', 'he', 'her', 'here',
+             'hers', 'herself', 'him', 'himself', 'his', 'how', 'i', 'if', 'in',
+             'into','is', 'it', 'its', 'itself', 'just', 'll', 'm', 'ma',
+             'me', 'more', 'most','my', 'myself', 'now', 'o', 'of', 'on', 'once',
+             'only', 'or', 'other', 'our', 'ours','ourselves', 'out', 'own', 're','s', 'same', 'she', "shes", 'should', "shouldve",'so', 'some', 'such',
+             't', 'than', 'that', "thatll", 'the', 'their', 'theirs', 'them',
+             'themselves', 'then', 'there', 'these', 'they', 'this', 'those',
+             'through', 'to', 'too','under', 'until', 'up', 've', 'very', 'was',
+             'we', 'were', 'what', 'when', 'where','which','while', 'who', 'whom',
+             'why', 'will', 'with', 'won', 'y', 'you', "youd","youll", "youre",
+             "youve", 'your', 'yours', 'yourself', 'yourselves']
+STOPWORDS = set(stopwordlist)
+def cleaning_stopwords(text):
+    return " ".join([word for word in str(text).split() if word not in STOPWORDS])
+dataset['text'] = dataset['text'].apply(lambda text: cleaning_stopwords(text))
+dataset['text'].head()
+800000                love @health4uandpets u guys r best!!
+800001    im meeting one besties tonight! cant wait!! - ...
+800002    @darealsunisakim thanks twitter add, sunisa! g...
+800003    sick really cheap hurts much eat real food plu...
+800004                      @lovesbrooklyn2 effect everyone
+Name: text, dtype: object
+import string
+english_punctuations = string.punctuation
+punctuations_list = english_punctuations
+def cleaning_punctuations(text):
+    translator = str.maketrans('', '', punctuations_list)
+    return text.translate(translator)
+dataset['text']= dataset['text'].apply(lambda x: cleaning_punctuations(x))
+dataset['text'].tail()
+19995    not much time off weekend work trip malmï¿½ fr...
+19996                                     one day holidays
+19997                     feeling right  hate damn humprey
+19998    geezi hv read whole book personality types emb...
+19999    threw sign donnie bent over get but thingee ma...
+Name: text, dtype: object
+def cleaning_repeating_char(text):
+    return re.sub(r'(.)1+', r'1', text)
+dataset['text'] = dataset['text'].apply(lambda x: cleaning_repeating_char(x))
+dataset['text'].tail()
+19995    not much time off weekend work trip malmï¿½ fr...
+19996                                     one day holidays
+19997                     feeling right  hate damn humprey
+19998    geezi hv read whole book personality types emb...
+19999    threw sign donnie bent over get but thingee ma...
+Name: text, dtype: object
+def cleaning_URLs(data):
+    return re.sub('((www.[^s]+)|(https?://[^s]+))',' ',data)
+dataset['text'] = dataset['text'].apply(lambda x: cleaning_URLs(x))
+dataset['text'].tail()
+19995    not much time off weekend work trip malmï¿½ fr...
+19996                                     one day holidays
+19997                     feeling right  hate damn humprey
+19998    geezi hv read whole book personality types emb...
+19999    threw sign donnie bent over get but thingee ma...
+Name: text, dtype: object
+def cleaning_numbers(data):
+    return re.sub('[0-9]+', '', data)
+dataset['text'] = dataset['text'].apply(lambda x: cleaning_numbers(x))
+dataset['text'].tail()
+19995    not much time off weekend work trip malmï¿½ fr...
+19996                                     one day holidays
+19997                     feeling right  hate damn humprey
+19998    geezi hv read whole book personality types emb...
+19999    threw sign donnie bent over get but thingee ma...
+Name: text, dtype: object
+from nltk.tokenize import RegexpTokenizer
+tokenizer = RegexpTokenizer(r'w+')
+dataset['text'] = dataset['text'].apply(tokenizer.tokenize)
+dataset['text'].head()
+800000           []
+800001          [w]
+800002    [w, w, w]
+800003           []
+800004           []
+Name: text, dtype: object
+import nltk
+st = nltk.PorterStemmer()
+def stemming_on_text(data):
+    text = [st.stem(word) for word in data]
+    return data
+dataset['text']= dataset['text'].apply(lambda x: stemming_on_text(x))
+dataset['text'].head()
+800000           []
+800001          [w]
+800002    [w, w, w]
+800003           []
+800004           []
+Name: text, dtype: object
+nltk.download('wordnet')
+lm = nltk.WordNetLemmatizer()
+def lemmatizer_on_text(data):
+    text = [lm.lemmatize(word) for word in data]
+    return data
+dataset['text'] = dataset['text'].apply(lambda x: lemmatizer_on_text(x))
+dataset['text'].head()
+---------------------------------------------------------------------------
+LookupError                               Traceback (most recent call last)
+File C:\anaconda3\lib\site-packages\nltk\corpus\util.py:84, in LazyCorpusLoader.__load(self)
+     83 try:
+---> 84     root = nltk.data.find(f"{self.subdir}/{zip_name}")
+     85 except LookupError:
+
+File C:\anaconda3\lib\site-packages\nltk\data.py:583, in find(resource_name, paths)
+    582 resource_not_found = f"\n{sep}\n{msg}\n{sep}\n"
+--> 583 raise LookupError(resource_not_found)
+
+LookupError: 
+**********************************************************************
+  Resource wordnet not found.
+  Please use the NLTK Downloader to obtain the resource:
+
+  >>> import nltk
+  >>> nltk.download('wordnet')
+  
+  For more information see: https://www.nltk.org/data.html
+
+  Attempted to load corpora/wordnet.zip/wordnet/
+
+  Searched in:
+    - 'C:\\Users\\LENOVO/nltk_data'
+    - 'C:\\anaconda3\\nltk_data'
+    - 'C:\\anaconda3\\share\\nltk_data'
+    - 'C:\\anaconda3\\lib\\nltk_data'
+    - 'C:\\Users\\LENOVO\\AppData\\Roaming\\nltk_data'
+    - 'C:\\nltk_data'
+    - 'D:\\nltk_data'
+    - 'E:\\nltk_data'
+**********************************************************************
+
+
+During handling of the above exception, another exception occurred:
+
+LookupError                               Traceback (most recent call last)
+Cell In[34], line 5
+      3     text = [lm.lemmatize(word) for word in data]
+      4     return data
+----> 5 dataset['text'] = dataset['text'].apply(lambda x: lemmatizer_on_text(x))
+      6 dataset['text'].head()
+
+File C:\anaconda3\lib\site-packages\pandas\core\series.py:4771, in Series.apply(self, func, convert_dtype, args, **kwargs)
+   4661 def apply(
+   4662     self,
+   4663     func: AggFuncType,
+   (...)
+   4666     **kwargs,
+   4667 ) -> DataFrame | Series:
+   4668     """
+   4669     Invoke function on values of Series.
+   4670 
+   (...)
+   4769     dtype: float64
+   4770     """
+-> 4771     return SeriesApply(self, func, convert_dtype, args, kwargs).apply()
+
+File C:\anaconda3\lib\site-packages\pandas\core\apply.py:1123, in SeriesApply.apply(self)
+   1120     return self.apply_str()
+   1122 # self.f is Callable
+-> 1123 return self.apply_standard()
+
+File C:\anaconda3\lib\site-packages\pandas\core\apply.py:1174, in SeriesApply.apply_standard(self)
+   1172     else:
+   1173         values = obj.astype(object)._values
+-> 1174         mapped = lib.map_infer(
+   1175             values,
+   1176             f,
+   1177             convert=self.convert_dtype,
+   1178         )
+   1180 if len(mapped) and isinstance(mapped[0], ABCSeries):
+   1181     # GH#43986 Need to do list(mapped) in order to get treated as nested
+   1182     #  See also GH#25959 regarding EA support
+   1183     return obj._constructor_expanddim(list(mapped), index=obj.index)
+
+File C:\anaconda3\lib\site-packages\pandas\_libs\lib.pyx:2924, in pandas._libs.lib.map_infer()
+
+Cell In[34], line 5, in <lambda>(x)
+      3     text = [lm.lemmatize(word) for word in data]
+      4     return data
+----> 5 dataset['text'] = dataset['text'].apply(lambda x: lemmatizer_on_text(x))
+      6 dataset['text'].head()
+
+Cell In[34], line 3, in lemmatizer_on_text(data)
+      2 def lemmatizer_on_text(data):
+----> 3     text = [lm.lemmatize(word) for word in data]
+      4     return data
+
+Cell In[34], line 3, in <listcomp>(.0)
+      2 def lemmatizer_on_text(data):
+----> 3     text = [lm.lemmatize(word) for word in data]
+      4     return data
+
+File C:\anaconda3\lib\site-packages\nltk\stem\wordnet.py:45, in WordNetLemmatizer.lemmatize(self, word, pos)
+     33 def lemmatize(self, word: str, pos: str = "n") -> str:
+     34     """Lemmatize `word` using WordNet's built-in morphy function.
+     35     Returns the input word unchanged if it cannot be found in WordNet.
+     36 
+   (...)
+     43     :return: The lemma of `word`, for the given `pos`.
+     44     """
+---> 45     lemmas = wn._morphy(word, pos)
+     46     return min(lemmas, key=len) if lemmas else word
+
+File C:\anaconda3\lib\site-packages\nltk\corpus\util.py:121, in LazyCorpusLoader.__getattr__(self, attr)
+    118 if attr == "__bases__":
+    119     raise AttributeError("LazyCorpusLoader object has no attribute '__bases__'")
+--> 121 self.__load()
+    122 # This looks circular, but its not, since __load() changes our
+    123 # __class__ to something new:
+    124 return getattr(self, attr)
+
+File C:\anaconda3\lib\site-packages\nltk\corpus\util.py:86, in LazyCorpusLoader.__load(self)
+     84             root = nltk.data.find(f"{self.subdir}/{zip_name}")
+     85         except LookupError:
+---> 86             raise e
+     88 # Load the corpus.
+     89 corpus = self.__reader_cls(root, *self.__args, **self.__kwargs)
+
+File C:\anaconda3\lib\site-packages\nltk\corpus\util.py:81, in LazyCorpusLoader.__load(self)
+     79 else:
+     80     try:
+---> 81         root = nltk.data.find(f"{self.subdir}/{self.__name}")
+     82     except LookupError as e:
+     83         try:
+
+File C:\anaconda3\lib\site-packages\nltk\data.py:583, in find(resource_name, paths)
+    581 sep = "*" * 70
+    582 resource_not_found = f"\n{sep}\n{msg}\n{sep}\n"
+--> 583 raise LookupError(resource_not_found)
+
+LookupError: 
+**********************************************************************
+  Resource wordnet not found.
+  Please use the NLTK Downloader to obtain the resource:
+
+  >>> import nltk
+  >>> nltk.download('wordnet')
+  
+  For more information see: https://www.nltk.org/data.html
+
+  Attempted to load corpora/wordnet
+
+  Searched in:
+    - 'C:\\Users\\LENOVO/nltk_data'
+    - 'C:\\anaconda3\\nltk_data'
+    - 'C:\\anaconda3\\share\\nltk_data'
+    - 'C:\\anaconda3\\lib\\nltk_data'
+    - 'C:\\Users\\LENOVO\\AppData\\Roaming\\nltk_data'
+    - 'C:\\nltk_data'
+    - 'D:\\nltk_data'
+    - 'E:\\nltk_data'
+**********************************************************************
+X=data.text
+y=data.target
+data_neg = data['text'][:800000]
+plt.figure(figsize = (20,20))
+wc = WordCloud(max_words = 1000 , width = 1600 , height = 800,
+               collocations=False).generate(" ".join(data_neg))
+plt.imshow(wc)
+<matplotlib.image.AxesImage at 0x1f296494f70>
+
+data_pos = data['text'][800000:]
+wc = WordCloud(max_words = 1000 , width = 1600 , height = 800,
+              collocations=False).generate(" ".join(data_pos))
+plt.figure(figsize = (20,20))
+plt.imshow(wc)
+<matplotlib.image.AxesImage at 0x1f28c2a26e0>
+
+# Separating the 95% data for training data and 5% for testing data
+X_train, X_test, y_train, y_test = train_test_split(X,y,test_size = 0.05, random_state =26105111)
+vectoriser = TfidfVectorizer(ngram_range=(1,2), max_features=500000)
+vectoriser.fit(X_train)
+print('No. of feature_words: ', len(vectoriser.get_feature_names()))
+---------------------------------------------------------------------------
+AttributeError                            Traceback (most recent call last)
+Cell In[39], line 3
+      1 vectoriser = TfidfVectorizer(ngram_range=(1,2), max_features=500000)
+      2 vectoriser.fit(X_train)
+----> 3 print('No. of feature_words: ', len(vectoriser.get_feature_names()))
+
+AttributeError: 'TfidfVectorizer' object has no attribute 'get_feature_names'
+No. of feature_words:  500000
+  Cell In[41], line 1
+    No. of feature_words:  500000
+           ^
+SyntaxError: invalid syntax
+X_train = vectoriser.transform(X_train)
+X_test  = vectoriser.transform(X_test)
+def model_Evaluate(model):
+    # Predict values for Test dataset
+    y_pred = model.predict(X_test)
+    # Print the evaluation metrics for the dataset.
+    print(classification_report(y_test, y_pred))
+    # Compute and plot the Confusion matrix
+    cf_matrix = confusion_matrix(y_test, y_pred)
+    categories = ['Negative','Positive']
+    group_names = ['True Neg','False Pos', 'False Neg','True Pos']
+    group_percentages = ['{0:.2%}'.format(value) for value in cf_matrix.flatten() / np.sum(cf_matrix)]
+    labels = [f'{v1}n{v2}' for v1, v2 in zip(group_names,group_percentages)]
+    labels = np.asarray(labels).reshape(2,2)
+    sns.heatmap(cf_matrix, annot = labels, cmap = 'Blues',fmt = '',
+    xticklabels = categories, yticklabels = categories)
+    plt.xlabel("Predicted values", fontdict = {'size':14}, labelpad = 10)
+    plt.ylabel("Actual values" , fontdict = {'size':14}, labelpad = 10)
+    plt.title ("Confusion Matrix", fontdict = {'size':18}, pad = 20)
+BNBmodel = BernoulliNB()
+BNBmodel.fit(X_train, y_train)
+model_Evaluate(BNBmodel)
+y_pred1 = BNBmodel.predict(X_test)
+              precision    recall  f1-score   support
+
+           0       0.89      0.90      0.90     40097
+           1       0.67      0.65      0.66     12332
+
+    accuracy                           0.84     52429
+   macro avg       0.78      0.78      0.78     52429
+weighted avg       0.84      0.84      0.84     52429
+
+
+from sklearn.metrics import roc_curve, auc
+fpr, tpr, thresholds = roc_curve(y_test, y_pred1)
+roc_auc = auc(fpr, tpr)
+plt.figure()
+plt.plot(fpr, tpr, color='darkorange', lw=1, label='ROC curve (area = %0.2f)' % roc_auc)
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('ROC CURVE')
+plt.legend(loc="lower right")
+plt.show()
+
+SVCmodel = LinearSVC()
+SVCmodel.fit(X_train, y_train)
+model_Evaluate(SVCmodel)
+y_pred2 = SVCmodel.predict(X_test)
+              precision    recall  f1-score   support
+
+           0       0.89      0.93      0.91     40097
+           1       0.74      0.63      0.68     12332
+
+    accuracy                           0.86     52429
+   macro avg       0.82      0.78      0.80     52429
+weighted avg       0.86      0.86      0.86     52429
+
+
+from sklearn.metrics import roc_curve, auc
+fpr, tpr, thresholds = roc_curve(y_test, y_pred2)
+roc_auc = auc(fpr, tpr)
+plt.figure()
+plt.plot(fpr, tpr, color='darkorange', lw=1, label='ROC curve (area = %0.2f)' % roc_auc)
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('ROC CURVE')
+plt.legend(loc="lower right")
+plt.show()
+
+LRmodel = LogisticRegression(C = 2, max_iter = 1000, n_jobs=-1)
+LRmodel.fit(X_train, y_train)
+model_Evaluate(LRmodel)
+y_pred3 = LRmodel.predict(X_test)
+              precision    recall  f1-score   support
+
+           0       0.89      0.95      0.92     40097
+           1       0.78      0.61      0.69     12332
+
+    accuracy                           0.87     52429
+   macro avg       0.83      0.78      0.80     52429
+weighted avg       0.86      0.87      0.86     52429
+
+
+from sklearn.metrics import roc_curve, auc
+fpr, tpr, thresholds = roc_curve(y_test, y_pred3)
+roc_auc = auc(fpr, tpr)
+plt.figure()
+plt.plot(fpr, tpr, color='darkorange', lw=1, label='ROC curve (area = %0.2f)' % roc_auc)
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('ROC CURVE')
+plt.legend(loc="lower right")
+plt.show()
+
+ 
